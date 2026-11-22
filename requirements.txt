@@ -1,0 +1,14 @@
+# Hosted server only (the laptop side is stdlib plus fastmcp).
+#
+# PINNED EXACTLY: a floating fastmcp drifted another MCP server to a newer 3.x
+# on a rebuild and its claude.ai connector started re-prompting for auth on every
+# call. If your stack rebuilds this image on every push, a range would let PyPI
+# decide the connector's session behavior. Bump deliberately: change the
+# pin, redeploy, reconnect, confirm no re-prompt.
+fastmcp==3.4.5
+
+# mcp 2.0.0 is a breaking major (FastMCP renamed); fastmcp-slim already caps
+# it, this states the constraint ourselves.
+mcp>=1.24,<2
+
+pydantic>=2.7

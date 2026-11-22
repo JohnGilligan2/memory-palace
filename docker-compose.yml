@@ -1,0 +1,74 @@
+# memory-palace, hosted mode: one container serving the scrubbed index read-only.
+#
+# THE COMPOSE ENV GOTCHA: every variable the code reads must appear in the
+# `environment:` block below. Stack managers such as Portainer only SUBSTITUTE
+# into this file; they are not injected into the container. tests/test_compose_env.py
+# keeps this block and hosted.Config.from_env in sync.
+
+services:
+  memory-palace:
+    build: .
+    container_name: memory-palace
+    restart: unless-stopped
+    # One container on the default bridge, reached only on its published port.
+    network_mode: bridge
+    ports:
+      # No default, deliberately: an unset MCP_HOST_PORT stops the deploy
+      # instead of colliding with a port already in use.
+      - "${MCP_HOST_PORT:?set MCP_HOST_PORT to a probed-free host port}:8000"
+    environment:
+      # --- telemetry (mcp-telemetry-kit) ---
+      # Optional OTLP metrics. Any bearer token lives only in the stack
+      # environment, never in git.
+      MCP_TELEMETRY_ENABLED: "${MCP_TELEMETRY_ENABLED:-true}"
+      OTEL_SERVICE_NAME: "${OTEL_SERVICE_NAME:-memory-palace}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+      OTEL_EXPORTER_OTLP_HEADERS: "${OTEL_EXPORTER_OTLP_HEADERS}"
+
+      PALACE_MODE: "hosted"
+      PALACE_DB: "/data/palace.db"
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8000"
+      MCP_PATH: "/mcp"
+
+      # Entra, RESOURCE app only. Claude signs in through the separate CLIENT
+      # app (two app registrations, never one: a single app gets no refresh token).
+      MCP_AUTH_ENABLED: "${MCP_AUTH_ENABLED:-true}"
+      ENTRA_TENANT_ID: "${ENTRA_TENANT_ID}"
+      ENTRA_CLIENT_ID: "${ENTRA_CLIENT_ID}"
+      ENTRA_IDENTIFIER_URI: "${ENTRA_IDENTIFIER_URI}"
+      MCP_BASE_URL: "${MCP_BASE_URL}"
+      ENTRA_SCOPE_NAME: "${ENTRA_SCOPE_NAME:-access_as_user}"
+      ENTRA_ADVERTISE_OFFLINE_ACCESS: "${ENTRA_ADVERTISE_OFFLINE_ACCESS:-true}"
+
+      # The laptop's nightly upload. Bearer token AND a private source address.
+      # The server refuses to boot without a token of at least 32 characters.
+      PALACE_INGEST_TOKEN: "${PALACE_INGEST_TOKEN}"
+      PALACE_INGEST_ALLOW_CIDRS: "${PALACE_INGEST_ALLOW_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8}"
+
+    volumes:
+      # The served index. Regenerated nightly by the laptop, so losing it costs
+      # one upload, nothing more.
+      - palace-data:/data
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    # Shared Docker host: caps ship in the first compose, not after an incident.
+    # Uploads stream to /data in 1 MB chunks (killed at 512m on 2026-11-05 when
+    # the whole body and database were held in memory). 1g is headroom for
+    # the page cache of a ~150 MB index plus concurrent recall queries.
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 128
+    ulimits:
+      nofile: { soft: 4096, hard: 8192 }
+
+volumes:
+  palace-data:

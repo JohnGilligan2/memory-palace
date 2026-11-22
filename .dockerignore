@@ -1,0 +1,12 @@
+# Never ship the corpus, state or notes into an image: the server receives the
+# scrubbed index over /ingest and nothing else.
+index/
+state/
+notes/
+tests/
+scripts/
+.git/
+__pycache__/
+.pytest_cache/
+*.env
+*.db

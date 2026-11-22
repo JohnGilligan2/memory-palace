@@ -1,0 +1,15 @@
+# Derived — rebuild with `python build.py`
+index/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local run state (queue, watermark, distilled ledger)
+state/
+
+# Secrets — nothing here should ever hold one, but belt and braces
+*.env
+!.env.example
+
+# Distilled notes stay on the laptop until a sensitivity pass. Not in the remote.
+notes/
